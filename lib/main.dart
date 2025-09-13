@@ -12,6 +12,9 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MaterialApp(home: FirstScreen()));
+  runApp(
+    // Step 6 Firestore CRUD operations
+    const MaterialApp(home: FirstScreen(), debugShowCheckedModeBanner: false),
+  );
 }
 

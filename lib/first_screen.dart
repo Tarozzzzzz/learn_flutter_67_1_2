@@ -8,6 +8,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 // Step 4 : Show toast message
 import 'package:fluttertoast/fluttertoast.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:learn_flutter_67_1_2/services/firestore.dart';
+
 class FirstScreen extends StatefulWidget {
   const FirstScreen({super.key});
 
@@ -93,7 +96,7 @@ class _FirstScreenState extends State<FirstScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
-                      './android/assets/image/app_screen_2.jpeg',
+                      './android/assets/image/app_screen.jpg',
                       width: 200,
                       height: 200,
                       fit: BoxFit.cover,
@@ -187,40 +190,186 @@ void _showAlertDialog(BuildContext context, String title, String msg) {
   );
 }
 
-class SecondScreen extends StatelessWidget {
+// class SecondScreen extends StatelessWidget {
+//   const SecondScreen({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       body: Container(
+//         decoration: const BoxDecoration(
+//           gradient: LinearGradient(
+//             colors: [Color(0xFFff9966), Color(0xFFff5e62)],
+//             begin: Alignment.topLeft,
+//             end: Alignment.bottomRight,
+//           ),
+//         ),
+//         child: SafeArea(
+//           child: Center(
+//             child: Text(
+//               'Welcome to the Second Screen!',
+//               textAlign: TextAlign.center,
+//               style: TextStyle(
+//                 fontSize: 28,
+//                 color: Colors.white,
+//                 fontWeight: FontWeight.bold,
+//                 shadows: [
+//                   Shadow(
+//                     blurRadius: 10,
+//                     color: Colors.black26,
+//                     offset: Offset(2, 2),
+//                   ),
+//                 ],
+//               ),
+//             ),
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+//Step 6: Firestore CRUD opertions
+class SecondScreen extends StatefulWidget {
   const SecondScreen({super.key});
+
+  @override
+  State<SecondScreen> createState() => _SecondScreenState();
+}
+
+class _SecondScreenState extends State<SecondScreen> {
+  final FirestoreService firestoreService = FirestoreService();
+
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController ageController = TextEditingController();
+
+  void openPersonBox(String? personID) async {
+    if (personID != null) {
+      final person = await firestoreService.getPersonById(personID);
+      nameController.text = person?['personName'] ?? '';
+      emailController.text = person?['personEmail'] ?? '';
+      ageController.text = person?['personAge']?.toString() ?? '';
+    } else {
+      nameController.clear();
+      emailController.clear();
+      ageController.clear();
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: ageController,
+              decoration: const InputDecoration(labelText: 'Age'),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text("Close"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final String name = nameController.text;
+              final String email = emailController.text;
+              final int age = int.tryParse(ageController.text) ?? 0;
+
+              if (personID != null) {
+                firestoreService.updatePerson(personID, name, email, age);
+              } else {
+                firestoreService.addPerson(name, email, age);
+              }
+
+              nameController.clear();
+              emailController.clear();
+              ageController.clear();
+
+              Navigator.of(context).pop();
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFff9966), Color(0xFFff5e62)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: Text(
-              'Welcome to the Second Screen!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 28,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                shadows: [
-                  Shadow(
-                    blurRadius: 10,
-                    color: Colors.black26,
-                    offset: Offset(2, 2),
-                  ),
-                ],
+      appBar: AppBar(
+        title: const Text("Person List"),
+        automaticallyImplyLeading: false,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => openPersonBox(null),
+        child: const Icon(Icons.add),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: firestoreService.getPersons(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Text(
+                "No persons found",
+                style: TextStyle(fontSize: 24, color: Colors.redAccent),
               ),
-            ),
-          ),
-        ),
+            );
+          }
+
+          final List<DocumentSnapshot> personList = snapshot.data!.docs;
+
+          return ListView.builder(
+            itemCount: personList.length,
+            itemBuilder: (context, index) {
+              final person = personList[index];
+              final personId = person.id;
+              final personData = person.data() as Map<String, dynamic>;
+
+              final nameText = personData['personName'] ?? '';
+              final emailText = personData['personEmail'] ?? '';
+              final ageText = personData['personAge'] ?? 0;
+
+              return ListTile(
+                title: Text('$nameText (Age: $ageText)'),
+                subtitle: Text(emailText),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => openPersonBox(personId),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () =>
+                          firestoreService.deletePerson(personId),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
